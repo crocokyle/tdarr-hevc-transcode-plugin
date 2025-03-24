@@ -357,7 +357,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
           codec_name === 'hevc'
           && file.container === inputs.container
           && (height === chosen_height)
-          && (chosen_bitrate * 0.7) <= currentBitrate >= (chosen_bitrate * 1.3)
+          && (chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3)
           && currentBitrate <= bitrate_ceiling
           && currentBitrate >= bitrate_floor
       ) {
@@ -366,7 +366,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
         response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HVEC\n`;
         response.infoLog += `  ${(file.container === inputs.container ? t : f)} Codec is HVEC\n`;
         response.infoLog += `  ${(height === chosen_height ? t : f)} Video height is ${chosen_height} px\n`;
-        response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate >= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
+        response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
         response.infoLog += `  ${(currentBitrate <= bitrate_ceiling ? t : f)} Bitrate is lower than ceiling\n`;
         response.infoLog += `  ${(currentBitrate >= bitrate_floor ? t : f)} Bitrate is higher than floor\n`;
         return response;
@@ -376,7 +376,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HVEC\n`;
       response.infoLog += `  ${(file.container === inputs.container ? t : f)} Codec is HVEC\n`;
       response.infoLog += `  ${(height === chosen_height ? t : f)} Video height is ${chosen_height} px\n`;
-      response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate >= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
+      response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
       response.infoLog += `  ${(currentBitrate <= bitrate_ceiling ? t : f)} Bitrate is lower than ceiling\n`;
       response.infoLog += `  ${(currentBitrate >= bitrate_floor ? t : f)} Bitrate is higher than floor\n`;
 
