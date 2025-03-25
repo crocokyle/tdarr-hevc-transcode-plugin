@@ -371,7 +371,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
         { condition: codec_match, description: 'Codec is HEVC' },
         { condition: container_match, description: `Container is ${inputs.container}` },
         { condition: resolution_match, description: `Resolution is ${inputs.quality.split('@')[0].trim()}`},
-        { condition: bitrate_match, description: `Bitrate is <= ${chosen_bitrate} kbps` },
+        { condition: bitrate_match, description: `Bitrate is <= ${chosen_bitrate * 1.1} kbps` },
         { condition: bitrate_ceiling_match, description: 'Bitrate is lower than the specified ceiling' },
         { condition: bitrate_floor_match, description: 'Bitrate is higher than the specified floor' },
       ];
