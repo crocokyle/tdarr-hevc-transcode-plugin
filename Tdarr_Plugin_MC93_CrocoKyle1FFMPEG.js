@@ -194,20 +194,21 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     duration = file.ffProbeData.streams[0].duration * 0.0166667;
   }
 
-  // Set up required variables.
+  // Quality profiles map the option to standard 16:9 resolutions and their respective bitrate.
+  // Aspect ratios are not hardcoded, but these are used to determine whether a video matches the target profile.
   const quality_profiles = {
     '360p @ 500 kbps': [360, 500],
-    '480p @ 1200 kbps': [480, 1200],
-    '720p @ 1500 kbps': [720, 1500],
-    '720p @ 3000 kbps': [720, 3000],
-    '1080p @ 3000 kbps': [1080, 3000],
-    '1080p @ 4500 kbps': [1080, 4500],
-    '2k @ 6000 kbps': [1440, 6000],
-    '2k @ 9000 kbps': [1440, 9000],
-    '4k @ 13000 kbps': [2160, 13000],
-    '4k @ 20000 kbps': [2160, 20000],
+    '480p @ 1200 kbps': [480, 720, 1200],
+    '720p @ 1500 kbps': [720, 1280, 1500],
+    '720p @ 3000 kbps': [720, 1280, 3000],
+    '1080p @ 3000 kbps': [1080, 1920, 3000],
+    '1080p @ 4500 kbps': [1080, 1920, 4500],
+    '2k @ 6000 kbps': [1440, 2560, 6000],
+    '2k @ 9000 kbps': [1440, 2560, 9000],
+    '4k @ 13000 kbps': [2160, 3840, 13000],
+    '4k @ 20000 kbps': [2160, 3840, 20000],
   }
-  const [chosen_height, chosen_bitrate] = quality_profiles[inputs.quality];
+  const [chosen_height, chosen_width, chosen_bitrate] = quality_profiles[inputs.quality];
   let videoIdx = 0;
   let CPU10 = false;
   let extraArguments = `-vf scale=-1:${chosen_height} `;
@@ -236,7 +237,6 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   // eslint-disable-next-line no-bitwise
 
   var targetBitrate = ~~(chosen_bitrate / Number(inputs.bitrate_scaledown_factor));
-  response.infoLog += `Downscaling bitrate by a factor of ${inputs.bitrate_scaledown_factor}x from ${currentBitrate} kbps to proposed bitrate of ${targetBitrate} kbps.\n`;
 
   // Lower the bitrate to the ceiling
   if (inputs.bitrate_ceiling !== '') {
@@ -253,6 +253,9 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       targetBitrate = bitrate_floor;
     }
   }
+
+  // Don't ever exceed the existing bitrate
+  if (targetBitrate > currentBitrate) { targetBitrate = currentBitrate }
 
   // Allow some leeway under and over the targetBitrate for action-packed scenes.
   // eslint-disable-next-line no-bitwise
@@ -351,34 +354,40 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       response.infoLog += `Codec: ${codec_name}\n`;
       response.infoLog += `Bitrate: ${currentBitrate} kbps \n`;
       response.infoLog += `===============================\n`;
-      let t = '✅';
-      let f = '❌';
-      if (
-          codec_name === 'hevc'
-          && file.container === inputs.container
-          && (height === chosen_height)
-          && (chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3)
-          && currentBitrate <= bitrate_ceiling
-          && currentBitrate >= bitrate_floor
-      ) {
-        response.processFile = false;
-        response.infoLog += `Success conditions have all been met. Skipping transcoding for this file...\n`;
-        response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HEVC\n`;
-        response.infoLog += `  ${(file.container === inputs.container ? t : f)} Container is ${inputs.container}\n`;
-        response.infoLog += `  ${(height === chosen_height ? t : f)} Video height is ${chosen_height} px\n`;
-        response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
-        response.infoLog += `  ${(currentBitrate <= bitrate_ceiling ? t : f)} Bitrate is lower than ceiling\n`;
-        response.infoLog += `  ${(currentBitrate >= bitrate_floor ? t : f)} Bitrate is higher than floor\n`;
-        return response;
+
+      function generateConditionLog(condition, description) {
+        return `  ${condition ? '✅' : '❌'} ${description}\n`;
       }
 
-      response.infoLog += `Success conditions have not been met yet. Transcoding...\n`;
-      response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HEVC\n`;
-      response.infoLog += `  ${(file.container === inputs.container ? t : f)} Container is ${inputs.container}\n`;
-      response.infoLog += `  ${(height === chosen_height ? t : f)} Video height is ${chosen_height} px\n`;
-      response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
-      response.infoLog += `  ${(currentBitrate <= bitrate_ceiling ? t : f)} Bitrate is lower than ceiling\n`;
-      response.infoLog += `  ${(currentBitrate >= bitrate_floor ? t : f)} Bitrate is higher than floor\n`;
+      // Success Conditions
+      let codec_match = codec_name === 'hevc'
+      let container_match = file.container === inputs.container;
+      let resolution_match = width <= chosen_width && height <= chosen_height
+      let bitrate_match = (chosen_bitrate * 0.9 <= currentBitrate) && (currentBitrate <= chosen_bitrate * 1.1)
+      let bitrate_ceiling_match = currentBitrate <= bitrate_ceiling
+      let bitrate_floor_match = currentBitrate >= bitrate_floor
+
+      let conditions = [
+        { condition: codec_match, description: 'Codec is HEVC' },
+        { condition: container_match, description: `Container is ${inputs.container}` },
+        { condition: resolution_match, description: `Resolution is ${inputs.quality.split('@')[0].trim()}`},
+        { condition: bitrate_match, description: `Bitrate is ${chosen_bitrate} kbps` },
+        { condition: bitrate_ceiling_match, description: 'Bitrate is lower than the specified ceiling' },
+        { condition: bitrate_floor_match, description: 'Bitrate is higher than the specified floor' },
+      ];
+
+      let allConditionsMet = conditions.every(item => item.condition);
+
+      if (allConditionsMet) {
+        response.processFile = false;
+        response.infoLog += `Success conditions have all been met. Skipping transcoding for this file...\n`;
+      } else {
+        response.infoLog += `Success conditions have not been met yet. Transcoding...\n`;
+      }
+
+      conditions.forEach(item => {
+        response.infoLog += generateConditionLog(item.condition, item.description);
+      });
 
       // Check if video stream is HDR or 10bit
       if (
