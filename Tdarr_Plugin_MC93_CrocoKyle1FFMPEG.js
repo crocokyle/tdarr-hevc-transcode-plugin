@@ -381,6 +381,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       if (allConditionsMet) {
         response.processFile = false;
         response.infoLog += `Success conditions have all been met. Skipping transcoding for this file...\n`;
+        return response;
       } else {
         response.infoLog += `Success conditions have not been met yet. Transcoding...\n`;
       }
