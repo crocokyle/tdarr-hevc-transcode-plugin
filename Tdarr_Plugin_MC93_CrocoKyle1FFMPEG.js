@@ -5,7 +5,7 @@ const details = () => ({
   Name: 'CrocoKyles Transcode via Nvidia GPU',
   Type: 'Video',
   Operation: 'Transcode',
-  Description: `Files not in HVEC will be transcoded to HVEC using an Nvidia GPU through ffmpeg.
+  Description: `Files not in HEVC will be transcoded to HEVC using an Nvidia GPU through ffmpeg.
                 All files not in the target quality profile will either be upscaled or downscaled to fit this resolution.
                 The output bitrate will target an appropriate bitrate for the chosen quality profile, however, the bitrate 
                 settings provided will override this behavior.
@@ -363,7 +363,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       ) {
         response.processFile = false;
         response.infoLog += `Success conditions have all been met. Skipping transcoding for this file...\n`;
-        response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HVEC\n`;
+        response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HEVC\n`;
         response.infoLog += `  ${(file.container === inputs.container ? t : f)} Container is ${inputs.container}\n`;
         response.infoLog += `  ${(height === chosen_height ? t : f)} Video height is ${chosen_height} px\n`;
         response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
@@ -373,7 +373,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       }
 
       response.infoLog += `Success conditions have not been met yet. Transcoding...\n`;
-      response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HVEC\n`;
+      response.infoLog += `  ${(codec_name === 'hevc' ? t : f)} Codec is HEVC\n`;
       response.infoLog += `  ${(file.container === inputs.container ? t : f)} Container is ${inputs.container}\n`;
       response.infoLog += `  ${(height === chosen_height ? t : f)} Video height is ${chosen_height} px\n`;
       response.infoLog += `  ${((chosen_bitrate * 0.7) <= currentBitrate <= (chosen_bitrate * 1.3) ? t : f)} Video bitrate is ${chosen_bitrate} kbps\n`;
