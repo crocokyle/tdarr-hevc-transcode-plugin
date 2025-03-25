@@ -363,7 +363,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       let codec_match = codec_name === 'hevc'
       let container_match = file.container === inputs.container;
       let resolution_match = width <= chosen_width && height <= chosen_height
-      let bitrate_match = (chosen_bitrate * 0.9 <= currentBitrate) && (currentBitrate <= chosen_bitrate * 1.1)
+      let bitrate_match = (currentBitrate <= chosen_bitrate * 1.1)
       let bitrate_ceiling_match = currentBitrate <= bitrate_ceiling
       let bitrate_floor_match = currentBitrate >= bitrate_floor
 
@@ -371,7 +371,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
         { condition: codec_match, description: 'Codec is HEVC' },
         { condition: container_match, description: `Container is ${inputs.container}` },
         { condition: resolution_match, description: `Resolution is ${inputs.quality.split('@')[0].trim()}`},
-        { condition: bitrate_match, description: `Bitrate is ${chosen_bitrate} kbps` },
+        { condition: bitrate_match, description: `Bitrate is <= ${chosen_bitrate} kbps` },
         { condition: bitrate_ceiling_match, description: 'Bitrate is lower than the specified ceiling' },
         { condition: bitrate_floor_match, description: 'Bitrate is higher than the specified floor' },
       ];
