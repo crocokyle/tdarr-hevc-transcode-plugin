@@ -7,34 +7,42 @@ const details = () => ({
   Operation: 'Transcode',
   Description: `Files not in HEVC will be transcoded to HEVC using an Nvidia GPU through ffmpeg.
                 All files not in the target quality profile will either be upscaled or downscaled to fit this resolution.
-                The output bitrate will target an appropriate bitrate for the chosen quality profile, however, the bitrate 
-                settings provided will override this behavior.
                 This is a rewrite of Migz Transcode Using Nvidia GPU & FFMPEG.`,
   Version: '1.0.1',
   Tags: 'pre-processing,ffmpeg,video only,nvenc h265,configurable',
   Inputs: [
     {
-      name: 'quality',
+      name: 'resolution',
       type: 'string',
-      defaultValue: '1080p @ 4500 kbps',
+      defaultValue: '1080p',
       inputUI: {
         type: 'dropdown',
         options: [
-          '360p @ 500 kbps',
-          '480p @ 1200 kbps',
-          '720p @ 1500 kbps',
-          '720p @ 3000 kbps',
-          '1080p @ 3000 kbps',
-          '1080p @ 4500 kbps',
-          '2k @ 6000 kbps',
-          '2k @ 9000 kbps',
-          '4k @ 13000 kbps',
-          '4k @ 20000 kbps',
+          '360p',
+          '480p',
+          '720p',
+          '1080p',
+          '2k',
+          '4k',
         ],
       },
       tooltip: `Specify the target output resolution. Videos using a source aspect ratio other than 16:9 will be 
-                scaled to the corresponding vertical height and maintain their aspect ratio. Note that this bitrate
-                can be overriden by the bitrate settings below.`
+                scaled to the corresponding vertical height and maintain their aspect ratio.`
+    },
+    {
+      name: 'quality',
+      type: 'string',
+      defaultValue: 'Medium',
+      inputUI: {
+        type: 'dropdown',
+        options: [
+          'Auto (Lossless)',
+          'High',
+          'Medium',
+          'Low',
+        ],
+      },
+      tooltip: `Specify the output quality. This adjusts the CRF values that ffmpeg uses to determine bitrate. Medium should generally reduce video size. High may maintain or slightly increase size.`
     },
     {
       name: 'container',
@@ -57,53 +65,7 @@ const details = () => ({
       },
       tooltip: `Specify output container of file. Use 'original' to keep original container.
                 \\n Ensure that all stream types you may have are supported by your chosen container.
-                \\n mkv is recommended.
-                    \\nExample:\\n
-                    mkv
-
-                    \\nExample:\\n
-                    mp4
-                    
-                    \\nExample:\\n
-                    original`,
-    },
-    {
-      name: 'bitrate_scaledown_factor',
-      type: 'string',
-      defaultValue: '1',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Scales down the bitrate for each resolution by the factor specified. This value is ignored when exceeding bitrate_ceiling.
-                
-                \\n Example:
-                \\n If using a resolution of 1080p, with this value set to 2, the default bitrate for 1080p is 4500 kpbs. The output bitrate will be half or 2250 kbps.`,
-    },
-    {
-      name: 'bitrate_floor',
-      type: 'string',
-      defaultValue: '',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Specify the absolute lowest output bitrate. Files will not be transcoded to a lower bitrate. Must be set lower than bitrate_ceiling. This setting can increase file size.
-               \\n Rate is in kbps.
-               \\n Leave empty to disable (Recommended).
-                    \\nExample:\\n
-                    If using a resolution of 480p, with this value set to 3000, the default bitrate for 480p is 1000 kpbs. The output bitrate will be 3000 kbps.`,
-    },
-    {
-      name: 'bitrate_ceiling',
-      type: 'string',
-      defaultValue: '20000',
-      inputUI: {
-        type: 'text',
-      },
-      tooltip: `Specify the absolute highest output bitrate. Files with a lower target bitrate will target this value. Must be set higher than bitrate_floor. 
-               \\n Rate is in kbps.
-               \\n Leave empty to disable.
-                    \\nExample:\\n
-                    If using a resolution of 4k, with this value set to 8000, the default bitrate for 4k is 20000 kpbs. The output bitrate will be 8000 kbps.`,
+                \\n mkv is recommended.`
     },
     {
       name: 'enable_10bit',
@@ -116,12 +78,7 @@ const details = () => ({
           'true',
         ],
       },
-      tooltip: `Specify if output file should be 10bit. Default is false.
-                    \\nExample:\\n
-                    true
-
-                    \\nExample:\\n
-                    false`,
+      tooltip: `Specify if output file should be 10bit. Default is false.`
     },
     {
       name: 'enable_bframes',
@@ -136,12 +93,7 @@ const details = () => ({
       },
       tooltip: `Specify if b frames should be used.
                  \\n Using B frames should decrease file sizes but are only supported on newer GPUs.
-                 \\n Default is false.
-                    \\nExample:\\n
-                    true
-
-                    \\nExample:\\n
-                    false`,
+                 \\n Default is false.`
     },
   ],
 });
@@ -159,8 +111,6 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     reQueueAfter: true,
     infoLog: '',
   };
-
-  let duration = '';
 
   // Check if inputs.container has been configured. If it hasn't then exit plugin.
   if (inputs.container === '') {
@@ -184,96 +134,38 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     return response;
   }
 
-  // Check if duration info is filled, if so times it by 0.0166667 to get time in minutes.
-  // If not filled then get duration of stream 0 and do the same.
-  if (parseFloat(file.ffProbeData?.format?.duration) > 0) {
-    duration = parseFloat(file.ffProbeData?.format?.duration) * 0.0166667;
-  } else if (typeof file.meta.Duration !== 'undefined') {
-    duration = file.meta.Duration * 0.0166667;
-  } else {
-    duration = file.ffProbeData.streams[0].duration * 0.0166667;
+  let quality_map = {
+    'Auto': 0,
+    'High': 0,
+    'Medium': 1,
+    'Low': 2
   }
-
   // Quality profiles map the option to standard 16:9 resolutions and their respective bitrate.
   // Aspect ratios are not hardcoded, but these are used to determine whether a video matches the target profile.
-  const quality_profiles = {
-    '360p @ 500 kbps': [360, 500],
-    '480p @ 1200 kbps': [480, 720, 1200],
-    '720p @ 1500 kbps': [720, 1280, 1500],
-    '720p @ 3000 kbps': [720, 1280, 3000],
-    '1080p @ 3000 kbps': [1080, 1920, 3000],
-    '1080p @ 4500 kbps': [1080, 1920, 4500],
-    '2k @ 6000 kbps': [1440, 2560, 6000],
-    '2k @ 9000 kbps': [1440, 2560, 9000],
-    '4k @ 13000 kbps': [2160, 3840, 13000],
-    '4k @ 20000 kbps': [2160, 3840, 20000],
+  // The third value in the arrays are the target CRF values to be used by ffmpeg.
+  let crf_dropdown_factor = quality_map[inputs.quality];
+  response.infoLog += `CRF Dropdown: ${crf_dropdown_factor}\n`
+  let resolution_profiles = {
+    '360p': [360, 640, 37 + quality_map[inputs.quality]],
+    '480p': [480, 720, 35 + quality_map[inputs.quality]],
+    '720p': [720, 1280, 32 + quality_map[inputs.quality]],
+    '1080p': [1080, 1920, 31 + quality_map[inputs.quality]],
+    '2k': [1440, 2560, 29 + quality_map[inputs.quality]],
+    '4k': [2160, 3840, 28 + quality_map[inputs.quality]],
   }
-  const [chosen_height, chosen_width, chosen_bitrate] = quality_profiles[inputs.quality];
+  const [chosen_height, chosen_width, chosen_crf] = resolution_profiles[inputs.resolution];
+  response.infoLog += `CRF: ${chosen_crf}\n`;
   let videoIdx = 0;
   let CPU10 = false;
-  let extraArguments = `-vf scale=-1:${chosen_height} `;
+  let extraArguments = ``;
+  if (!isNaN(chosen_crf)) {
+    extraArguments += `-cq:v ${chosen_crf} `
+  }
   let genpts = '';
-
-  let bitrate_floor = Number(inputs.bitrate_floor);
-  let bitrate_ceiling = Number(inputs.bitrate_ceiling);
-
-  if (bitrate_ceiling <= bitrate_floor) {
-    response.infoLog += 'bitrate_ceiling must be greater than the bitrate_floor.';
-    return response;
-  }
-  if (inputs.bitrate_scaledown_factor < 1) {
-    response.infoLog += 'bitrate_scaledown_factor must be greater than 1.';
-    return response;
-  }
-
-  // Bitrate calculations
-  let bitrateSettings = '';
-  // Work out currentBitrate using "Bitrate = file size / (number of minutes * .0075)"
-  // Used from here https://blog.frame.io/2017/03/06/calculate-video-bitrates/
-  // eslint-disable-next-line no-bitwise
-  const currentBitrate = ~~(file.file_size / (duration * 0.0075));
-  // Use the same calculation used for currentBitrate but divide it in half to get targetBitrate.
-  // Logic of h265 can be half the bitrate as h264 without losing quality.
-  // eslint-disable-next-line no-bitwise
-
-  var targetBitrate = ~~(chosen_bitrate / Number(inputs.bitrate_scaledown_factor));
-
-  // Lower the bitrate to the ceiling
-  if (inputs.bitrate_ceiling !== '') {
-    if (targetBitrate > bitrate_ceiling) {
-      response.infoLog += `Proposed bitrate ${targetBitrate} kbps exceeds ceiling. Limiting to ${bitrate_ceiling} kbps.\n`;
-      targetBitrate = bitrate_ceiling;
-    }
-  }
-
-  // Raise the bitrate to the floor
-  if (inputs.bitrate_ceiling !== '') {
-    if (targetBitrate < bitrate_floor) {
-      response.infoLog += `Proposed bitrate ${targetBitrate} kbps is lower than the floor. Raising to ${bitrate_floor} kbps.\n`;
-      targetBitrate = bitrate_floor;
-    }
-  }
-
-  // Don't ever exceed the existing bitrate
-  if (targetBitrate > currentBitrate) { targetBitrate = currentBitrate }
-
-  // Allow some leeway under and over the targetBitrate for action-packed scenes.
-  // eslint-disable-next-line no-bitwise
-  const minimumBitrate = ~~(targetBitrate * 0.7);
-  // eslint-disable-next-line no-bitwise
-  const maximumBitrate = ~~(targetBitrate * 1.3);
 
   // If Container .ts or .avi set genpts to fix unknown timestamp
   if (inputs.container.toLowerCase() === 'ts' || inputs.container.toLowerCase() === 'avi') {
     genpts = '-fflags +genpts';
-  }
-
-  // If targetBitrate comes out as 0 then something has gone wrong and bitrates could not be calculated.
-  // Cancel plugin completely.
-  if (targetBitrate === 0) {
-    response.processFile = false;
-    response.infoLog += 'Target bitrate could not be calculated. Skipping this plugin. \n';
-    return response;
   }
 
   // Check streams and add any extra parameters required to make file conform with output format.
@@ -352,7 +244,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       response.infoLog += `Height: ${height} px\n`;
       response.infoLog += `Width: ${width} px\n`;
       response.infoLog += `Codec: ${codec_name}\n`;
-      response.infoLog += `Bitrate: ${currentBitrate} kbps \n`;
+      response.infoLog += `Container: ${file.container}\n`;
       response.infoLog += `===============================\n`;
 
       function generateConditionLog(condition, description) {
@@ -362,18 +254,12 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       // Success Conditions
       let codec_match = codec_name === 'hevc'
       let container_match = file.container === inputs.container;
-      let resolution_match = width <= chosen_width && height <= chosen_height
-      let bitrate_match = (currentBitrate <= chosen_bitrate * 1.1)
-      let bitrate_ceiling_match = currentBitrate <= bitrate_ceiling
-      let bitrate_floor_match = currentBitrate >= bitrate_floor
+      let resolution_match = width <= chosen_width || height <= chosen_height
 
       let conditions = [
         { condition: codec_match, description: 'Codec is HEVC' },
         { condition: container_match, description: `Container is ${inputs.container}` },
-        { condition: resolution_match, description: `Resolution is ${inputs.quality.split('@')[0].trim()}`},
-        { condition: bitrate_match, description: `Bitrate is <= ${chosen_bitrate * 1.1} kbps` },
-        { condition: bitrate_ceiling_match, description: 'Bitrate is lower than the specified ceiling' },
-        { condition: bitrate_floor_match, description: 'Bitrate is higher than the specified floor' },
+        { condition: resolution_match, description: `Resolution is ${inputs.resolution.split('@')[0].trim()}`},
       ];
 
       let allConditionsMet = conditions.every(item => item.condition);
@@ -390,6 +276,10 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
         response.infoLog += generateConditionLog(item.condition, item.description);
       });
 
+      // Rescale if required
+      if (!resolution_match) {
+        extraArguments += `-vf scale=-1:${chosen_height} `
+      }
       // Check if video stream is HDR or 10bit
       if (
           file.ffProbeData.streams[i].profile === 'High 10'
@@ -402,22 +292,6 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       videoIdx += 1;
     }
   }
-
-  // Set bitrateSettings variable using bitrate information calulcated earlier.
-  bitrateSettings = `-b:v ${targetBitrate}k -minrate ${minimumBitrate}k `
-      + `-maxrate ${maximumBitrate}k -bufsize ${currentBitrate}k`;
-  // `-b:v ${targetBitrate}k -minrate ${minimumBitrate}k `
-  // + `-maxrate ${maximumBitrate}k -bufsize ${currentBitrate}k`;
-
-  // Print to infoLog information around file & bitrate settings.
-  response.infoLog += `======== Output Bitrate Details: ========\n`;
-  response.infoLog += `Ceiling (Average): ${bitrate_ceiling} kbps \n`;
-  response.infoLog += `Maximum (Any given time): ${maximumBitrate} kbps \n`;
-  response.infoLog += `Chosen: ${chosen_bitrate} kbps \n`;
-  response.infoLog += `Target: ${targetBitrate} kbps \n`;
-  response.infoLog += `Minimum (Any given time): ${minimumBitrate} kbps \n`;
-  response.infoLog += `Floor (Average): ${bitrate_floor} kbps \n`;
-  response.infoLog += `===============================\n`;
 
   // Codec will be checked so it can be transcoded correctly
   if (file.video_codec_name === 'h263') {
@@ -440,8 +314,9 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     response.preset = '-c:v vp8_cuvid';
   }
 
-  response.preset += `${genpts}, -map 0 -c:v hevc_nvenc -cq:v 19 ${bitrateSettings} `
+  response.preset += `${genpts}, -map 0 -c:v hevc_nvenc `
       + `-spatial_aq:v 1 -rc-lookahead:v 32 -c:a copy -c:s copy -max_muxing_queue_size 9999 ${extraArguments}`;
+  response.infoLog += `Running command:\n${response.preset}`
   response.processFile = true;
 
   return response;
