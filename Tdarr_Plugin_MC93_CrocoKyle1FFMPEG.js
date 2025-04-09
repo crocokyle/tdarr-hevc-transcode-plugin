@@ -146,14 +146,20 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   let crf_dropdown_factor = quality_map[inputs.quality];
   response.infoLog += `CRF Dropdown: ${crf_dropdown_factor}\n`
   let resolution_profiles = {
-    '360p': [360, 640, 37 + quality_map[inputs.quality]],
-    '480p': [480, 720, 35 + quality_map[inputs.quality]],
-    '720p': [720, 1280, 32 + quality_map[inputs.quality]],
-    '1080p': [1080, 1920, 31 + quality_map[inputs.quality]],
-    '2k': [1440, 2560, 29 + quality_map[inputs.quality]],
-    '4k': [2160, 3840, 28 + quality_map[inputs.quality]],
+    '360p': [360, 640, 37],
+    '480p': [480, 720, 35],
+    '720p': [720, 1280, 32],
+    '1080p': [1080, 1920, 31],
+    '2k': [1440, 2560, 29],
+    '4k': [2160, 3840, 28],
   }
-  const [chosen_height, chosen_width, chosen_crf] = resolution_profiles[inputs.resolution];
+  const [chosen_height, chosen_width, starting_crf] = resolution_profiles[inputs.resolution];
+
+  let chosen_crf = starting_crf + quality_map[inputs.quality]
+  if (inputs.quality == 'Auto') {
+    chosen_crf = 0
+  }
+
   response.infoLog += `CRF: ${chosen_crf}\n`;
   let videoIdx = 0;
   let CPU10 = false;
