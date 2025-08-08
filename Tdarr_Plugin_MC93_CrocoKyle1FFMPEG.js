@@ -146,12 +146,12 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   let crf_dropdown_factor = quality_map[inputs.quality];
   response.infoLog += `CRF Dropdown: ${crf_dropdown_factor}\n`
   let resolution_profiles = {
-    '360p': [360, 640, 37],
-    '480p': [480, 720, 35],
-    '720p': [720, 1280, 32],
-    '1080p': [1080, 1920, 31],
-    '2k': [1440, 2560, 29],
-    '4k': [2160, 3840, 28],
+    '360p': [360, 640, 35],
+    '480p': [480, 720, 33],
+    '720p': [720, 1280, 30],
+    '1080p': [1080, 1920, 29],
+    '2k': [1440, 2560, 27],
+    '4k': [2160, 3840, 26],
   }
   const [chosen_height, chosen_width, starting_crf] = resolution_profiles[inputs.resolution];
   
