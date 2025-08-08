@@ -154,12 +154,12 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     '4k': [2160, 3840, 28],
   }
   const [chosen_height, chosen_width, starting_crf] = resolution_profiles[inputs.resolution];
-
+  
   let chosen_crf = starting_crf + quality_map[inputs.quality]
   if (inputs.quality == 'Auto') {
     chosen_crf = 0
   }
-
+  
   response.infoLog += `CRF: ${chosen_crf}\n`;
   let videoIdx = 0;
   let CPU10 = false;
@@ -321,7 +321,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
   }
 
   response.preset += `${genpts}, -map 0 -c:v hevc_nvenc `
-      + `-spatial_aq:v 1 -rc-lookahead:v 32 -c:a copy -c:s copy -max_muxing_queue_size 9999 ${extraArguments}`;
+      + `-spatial_aq:v 1 -rc-lookahead:v 32 -c:a copy -vsync 1 -c:s copy -max_muxing_queue_size 9999 ${extraArguments}`;
   response.infoLog += `Running command:\n${response.preset}`
   response.processFile = true;
 
