@@ -299,28 +299,29 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
     }
   }
 
+  var codecPreset = '-c:v hevc_qsv';
   // Codec will be checked so it can be transcoded correctly
   if (file.video_codec_name === 'h263') {
-    response.preset = '-c:v h263_qsv';
+    codecPreset = '-c:v h263_qsv';
   } else if (file.video_codec_name === 'h264') {
     if (CPU10 === false) {
-      response.preset = '-c:v h264_qsv';
+      codecPreset = '-c:v h264_qsv';
     }
   } else if (file.video_codec_name === 'mjpeg') {
-    response.preset = '-c:v mjpeg_qsv';
+    codecPreset = '-c:v mjpeg_qsv';
   } else if (file.video_codec_name === 'mpeg1') {
-    response.preset = '-c:v mpeg1_qsv';
+    codecPreset = '-c:v mpeg1_qsv';
   } else if (file.video_codec_name === 'mpeg2') {
-    response.preset = '-c:v mpeg2_qsv';
+    codecPreset = '-c:v mpeg2_qsv';
   } else if (file.video_codec_name === 'mpeg4') {
-    response.preset = '-c:v mpeg4_qsv';
+    codecPreset = '-c:v mpeg4_qsv';
   } else if (file.video_codec_name === 'vc1') {
-    response.preset = '-c:v vc1_qsv';
+    codecPreset = '-c:v vc1_qsv';
   } else if (file.video_codec_name === 'vp8') {
-    response.preset = '-c:v vp8_qsv';
+    codecPreset = '-c:v vp8_qsv';
   }
 
-  response.preset += `${genpts}, -map 0 -c:v hevc_qsv `
+  response.preset += `${genpts}, -map 0 ${codecPreset} `
       + `-spatial_aq:v 1 -rc-lookahead:v 32 -c:a copy -vsync 1 -c:s copy -max_muxing_queue_size 9999 ${extraArguments}`;
   response.infoLog += `Running command:\n${response.preset}`
   response.processFile = true;
